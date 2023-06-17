@@ -1,0 +1,85 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "RESOURCES": {
+            "type": "object",
+            "properties": {
+                "AUDIO_ALARM": {"type": "string"}
+            },
+            "required": ["AUDIO_ALARM"]
+        },
+        "THRESHOLDS": {
+            "type": "object",
+            "properties": {
+                "EAR_THRESH": {
+                    "type": "array",
+                    "items": {"type": "number"}
+                },
+                "HEAD_THRESH": {
+                    "type": "array",
+                    "items": {"type": "number"}
+                },
+                "WAIT_TIME": {
+                    "type": "array",
+                    "items": {"type": "number"}
+                }
+            },
+            "required": ["EAR_THRESH", "HEAD_THRESH", "WAIT_TIME"]
+        },
+        "WEBRTC": {
+            "type": "object",
+            "properties": {
+                "KEY": {"type": "string"},
+                "VIDEO_HEIGHT": {"type": "number"}
+            },
+            "required": ["KEY", "VIDEO_HEIGHT"]
+        },
+        "DETECTION": {
+            "type": "object",
+            "properties": {
+                "MEDIAPIPE": {
+                    "type": "object",
+                    "properties": {
+                        "MAX_FACES": {"type": "number"},
+                        "MIN_FACE_DETECTION_CONFIDENCE": {"type": "number"},
+                        "MIN_FACE_TRACKING_CONFIDENCE": {"type": "number"}
+                    },
+                    "required": ["MAX_FACES", "MIN_FACE_DETECTION_CONFIDENCE", "MIN_FACE_TRACKING_CONFIDENCE"]
+                },
+                "OPENVINO": {
+                    "type": "object",
+                    "properties": {
+                        "HEAD_POS_MODEL": {"type": "string"},
+                        "HEAD_POS_MODEL_WEIGHTS": {"type": "string"},
+                        "DROWSY_MODEL": {"type": "string"},
+                        "DROWSY_MODEL_WEIGHTS": {"type": "string"}
+                    },
+                    "required": ["HEAD_POS_MODEL", "HEAD_POS_MODEL_WEIGHTS", "DROWSY_MODEL", "DROWSY_MODEL_WEIGHTS"]
+                },
+                "EAR": {
+                    "type": "object",
+                    "properties": {
+                        "LANDMARKS": {
+                            "type": "object",
+                            "properties": {
+                                "LEFT": {
+                                    "type": "array",
+                                    "items": {"type": "number"}
+                                },
+                                "RIGHT": {
+                                    "type": "array",
+                                    "items": {"type": "number"}
+                                }
+                            },
+                            "required": ["LEFT", "RIGHT"]
+                        }
+                    },
+                    "required": ["LANDMARKS"]
+                }
+            },
+            "required": ["MEDIAPIPE", "OPENVINO", "EAR"]
+        }
+    },
+    "required": ["RESOURCES", "THRESHOLDS", "WEBRTC", "DETECTION"]
+}

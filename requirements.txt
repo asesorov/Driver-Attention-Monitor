@@ -1,0 +1,13 @@
+matplotlib
+numpy
+opencv-python
+openvino==2023.0
+mediapipe
+streamlit
+streamlit_webrtc
+streamlit_nested_layout
+av
+pydub
+cryptography==38.0.0
+pyOpenSSL
+aiortc
