@@ -1,8 +1,11 @@
 matplotlib
 numpy
+jsonschema
+
 opencv-python
 openvino==2023.0
 mediapipe
+
 streamlit
 streamlit_webrtc
 streamlit_nested_layout

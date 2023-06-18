@@ -171,16 +171,37 @@ class VideoFrameHandler:
         # Tracking counters and sharing states in and out of callbacks
         self.state_tracker = {
             "FRAME_COUNTER": 0,
-            "EAR_start_time": time.perf_counter(),
-            "CLOSED_TIME": 0.0,  # Holds the amount of time passed with EAR < EAR_THRESH
-            "EAR_COLOR": self.GREEN,
+            "EAR": {
+                "start_time": time.perf_counter(),
+                "triggered_time": 0.0,  # Holds the amount of time passed with EAR < EAR_THRESH
+                "text_color": self.GREEN,
+            },
+            "HEAD": {
+                "start_time": time.perf_counter(),
+                "position": 0.0,
+                "triggered_time": 0.0,  # Holds the amount of time passed with HEAD_POS < HEAD_THRESH
+                "text_color": self.GREEN,
+            },
             "play_alarm": False,
-            "HEAD_start_time": time.perf_counter(),
-            "HEAD_POS": 0.0,
-            "HEAD_MOVED_TIME": 0.0,  # Holds the amount of time passed with HEAD_POS < HEAD_THRESH
-            "HEAD_POS_COLOR": self.GREEN,
             "IS_DROWSY": False
         }
+
+    def check_metric_trigger(self, value, threshold, state_value_label, wait_time, check_overcome=False):
+        if (check_overcome and (value > threshold)) or (not check_overcome and (value < threshold)):
+            current_time = time.perf_counter()
+            self.state_tracker[state_value_label]['triggered_time'] += current_time - self.state_tracker[state_value_label]['start_time']
+            self.state_tracker[state_value_label]['start_time'] = current_time
+            self.state_tracker[state_value_label]['text_color'] = self.RED
+
+            if self.state_tracker[state_value_label]['triggered_time'] >= wait_time:
+                self.state_tracker["play_alarm"] = True
+                return True
+        else:
+            self.state_tracker[state_value_label]['start_time'] = time.perf_counter()
+            self.state_tracker[state_value_label]['triggered_time'] = 0.0
+            self.state_tracker[state_value_label]['text_color'] = self.GREEN
+            self.state_tracker["play_alarm"] = False
+            return False
 
     def process(self, frame: np.array, thresholds: dict):
         """
@@ -205,68 +226,47 @@ class VideoFrameHandler:
         CLOSED_TIME_txt_pos = (10, int(frame_h // 2 * 1.7))
         ALM_txt_pos = (10, int(frame_h // 2 * 1.85))
 
-        results = self.facemesh_model.process(frame)
-        head_pos = get_head_pos(frame, self.head_net)
-
-        self.state_tracker["HEAD_POS"] = round(head_pos, 2)
-
-        # processing
+        # processing: drowsiness DL model
         if self.state_tracker['FRAME_COUNTER'] % 10 == 0:
             self.state_tracker['IS_DROWSY'] = check_drowsiness(frame, self.drowsy_net)
+            self.state_tracker['FRAME_COUNTER'] = 0
 
+        # processing: head position (yaw)
+        head_pos = get_head_pos(frame, self.head_net)
+        self.state_tracker['HEAD']['position'] = round(head_pos, 2)
+
+        # processing: eyes aspect ratio
+        results = self.facemesh_model.process(frame)
+
+        # preparing output
         if results.multi_face_landmarks:
             landmarks = results.multi_face_landmarks[0].landmark
             EAR, coordinates = calculate_avg_ear(landmarks, self.eye_idxs["left"], self.eye_idxs["right"], frame_w,
                                                  frame_h)
-            frame = plot_eye_landmarks(frame, coordinates[0], coordinates[1], self.state_tracker["EAR_COLOR"])
+            frame = plot_eye_landmarks(frame, coordinates[0], coordinates[1], self.state_tracker['EAR']['text_color'])
 
-            if EAR < thresholds["EAR_THRESH"]:
-                current_time = time.perf_counter()
-
-                self.state_tracker["CLOSED_TIME"] += current_time - self.state_tracker["EAR_start_time"]
-                self.state_tracker["EAR_start_time"] = current_time
-                self.state_tracker["EAR_COLOR"] = self.RED
-
-                if self.state_tracker["CLOSED_TIME"] >= thresholds["WAIT_TIME"]:
-                    self.state_tracker["play_alarm"] = True
-                    plot_text(frame, "OPEN YOUR EYES!", ALM_txt_pos, self.state_tracker["EAR_COLOR"])
-            else:
-                self.state_tracker["EAR_start_time"] = time.perf_counter()
-                self.state_tracker["CLOSED_TIME"] = 0.0
-                self.state_tracker["EAR_COLOR"] = self.GREEN
-                self.state_tracker["play_alarm"] = False
-
-            if head_pos > thresholds["HEAD_THRESH"]:
-                current_time = time.perf_counter()
-
-                self.state_tracker["HEAD_MOVED_TIME"] += current_time - self.state_tracker["HEAD_start_time"]
-                self.state_tracker["HEAD_start_time"] = current_time
-                self.state_tracker["HEAD_POS_COLOR"] = self.RED
-
-                if self.state_tracker["HEAD_MOVED_TIME"] >= thresholds["WAIT_TIME"]:
-                    self.state_tracker["play_alarm"] = True
-                    plot_text(frame, "EYES ON ROAD!", ALM_txt_pos, self.state_tracker["HEAD_POS_COLOR"])
-            else:
-                self.state_tracker["HEAD_start_time"] = time.perf_counter()
-                self.state_tracker["HEAD_MOVED_TIME"] = 0.0
-                self.state_tracker["HEAD_POS_COLOR"] = self.GREEN
-                self.state_tracker["play_alarm"] = False
+            if self.check_metric_trigger(EAR, thresholds['EAR_THRESH'], 'EAR', thresholds['WAIT_TIME']):
+                plot_text(frame, "OPEN YOUR EYES!", ALM_txt_pos, self.state_tracker['EAR']['text_color'])
+            if self.check_metric_trigger(head_pos, thresholds["HEAD_THRESH"], 'HEAD', thresholds['WAIT_TIME'], True):
+                plot_text(frame, "EYES ON ROAD!", ALM_txt_pos, self.state_tracker['HEAD']['text_color'])
 
             EAR_txt = f"EAR: {round(EAR, 2)}"
-            CLOSED_TIME_txt = f"DROWSY: {round(self.state_tracker['CLOSED_TIME'], 3)} Secs"
-            HEAD_text = f"HEAD POS: {self.state_tracker['HEAD_POS']}"
+            CLOSED_TIME_txt = f"EYES CLOSED: {round(self.state_tracker['EAR']['triggered_time'], 3)} Secs"
+            HEAD_text = f"HEAD POS: {self.state_tracker['HEAD']['position']}"
             STATE_text = f"STATE: {'DROWSY' if self.state_tracker['IS_DROWSY'] else 'OK'}"
 
-            plot_text(frame, EAR_txt, self.EAR_txt_pos, self.state_tracker["EAR_COLOR"])
-            plot_text(frame, CLOSED_TIME_txt, CLOSED_TIME_txt_pos, self.state_tracker["EAR_COLOR"])
-            plot_text(frame, HEAD_text, self.HEAD_txt_pos, self.state_tracker["HEAD_POS_COLOR"])
-            plot_text(frame, STATE_text, self.STATE_txt_pos, self.state_tracker["HEAD_POS_COLOR"])  # TODO: change
+            plot_text(frame, EAR_txt, self.EAR_txt_pos, self.state_tracker['EAR']['text_color'])
+            plot_text(frame, CLOSED_TIME_txt, CLOSED_TIME_txt_pos, self.state_tracker['EAR']['text_color'])
+            plot_text(frame, HEAD_text, self.HEAD_txt_pos, self.state_tracker['HEAD']['text_color'])
+            plot_text(frame, STATE_text, self.STATE_txt_pos, self.state_tracker['HEAD']['text_color'])  # TODO: change
 
         else:
-            self.state_tracker["EAR_start_time"] = time.perf_counter()
-            self.state_tracker["HEAD_start_time"] = time.perf_counter()
-            self.state_tracker["CLOSED_TIME"] = 0.0
-            self.state_tracker["EAR_COLOR"] = self.GREEN
+            self.state_tracker['EAR']['start_time'] = time.perf_counter()
+            self.state_tracker['HEAD']['start_time'] = time.perf_counter()
+            self.state_tracker['EAR']['triggered_time'] = 0.0
+            self.state_tracker['HEAD']['triggered_time'] = 0.0
+            self.state_tracker['EAR']["text_color"] = self.GREEN
+            self.state_tracker['HEAD']["text_color"] = self.GREEN
             self.state_tracker["play_alarm"] = False
 
             # Flip the frame horizontally for a selfie-view display.
