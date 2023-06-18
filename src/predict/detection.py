@@ -175,12 +175,16 @@ class VideoFrameHandler:
                 "start_time": time.perf_counter(),
                 "triggered_time": 0.0,  # Holds the amount of time passed with EAR < EAR_THRESH
                 "text_color": self.GREEN,
+                "average_triggered_time": 0.0,
+                "triggers_per_minute": 0
             },
             "HEAD": {
                 "start_time": time.perf_counter(),
                 "position": 0.0,
                 "triggered_time": 0.0,  # Holds the amount of time passed with HEAD_POS < HEAD_THRESH
                 "text_color": self.GREEN,
+                "average_triggered_time": 0.0,
+                "triggers_per_minute": 0
             },
             "play_alarm": False,
             "IS_DROWSY": False
@@ -189,7 +193,8 @@ class VideoFrameHandler:
     def check_metric_trigger(self, value, threshold, state_value_label, wait_time, check_overcome=False):
         if (check_overcome and (value > threshold)) or (not check_overcome and (value < threshold)):
             current_time = time.perf_counter()
-            self.state_tracker[state_value_label]['triggered_time'] += current_time - self.state_tracker[state_value_label]['start_time']
+            self.state_tracker[state_value_label]['triggered_time'] += current_time - \
+                self.state_tracker[state_value_label]['start_time']
             self.state_tracker[state_value_label]['start_time'] = current_time
             self.state_tracker[state_value_label]['text_color'] = self.RED
 
@@ -201,6 +206,11 @@ class VideoFrameHandler:
             self.state_tracker[state_value_label]['triggered_time'] = 0.0
             self.state_tracker[state_value_label]['text_color'] = self.GREEN
             self.state_tracker["play_alarm"] = False
+
+            if self.state_tracker[state_value_label]['triggered_time'] > 0.0:
+                self.state_tracker[state_value_label]['average_triggered_time'] = \
+                    (self.state_tracker[state_value_label]['average_triggered_time'] +
+                     self.state_tracker[state_value_label]['triggered_time']) / 2
             return False
 
     def process(self, frame: np.array, thresholds: dict):
