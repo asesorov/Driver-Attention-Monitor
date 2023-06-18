@@ -4,7 +4,8 @@ This is a repository for MFDP course (Emotion recognition task). The developed p
 Application is run using Streamlit library.
 
 ## Usage
-For docker build&run instruction, please refer to the Wiki: [Run app using Dockerfile](https://github.com/asesorov/Driver-Attention-Monitor/wiki/Docker-run)
+For docker build&run instruction, please refer to the Wiki: [Run app using Dockerfile](https://github.com/asesorov/Driver-Attention-Monitor/wiki/Docker-run).
+Details of pipeline structure can be found at [Detection pipeline structure](https://github.com/asesorov/Driver-Attention-Monitor/wiki/Detection-pipeline-structure) page.
 
 ## Repo structure
 - `assets` directory contains visual/audio resources.
