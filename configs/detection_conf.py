@@ -19,7 +19,7 @@ def read_json(path):
         return json.load(config_file)
 
 
-DEFAULT_SCHEMA_PATH = 'E:\\MFDP\\configs\\schemas\\main_schema.json'
+DEFAULT_SCHEMA_PATH = Path(Path(__file__).resolve().parent) / 'schemas/main_schema.json'
 DEFAULT_SCHEMA = read_json(DEFAULT_SCHEMA_PATH)
 
 

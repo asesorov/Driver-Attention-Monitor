@@ -1,7 +1,7 @@
 {
     "RESOURCES":
     {
-        "AUDIO_ALARM": "E:\\MFDP\\assets\\wake_up.wav"
+        "AUDIO_ALARM": "assets/wake_up.wav"
     },
     "THRESHOLDS":
     {

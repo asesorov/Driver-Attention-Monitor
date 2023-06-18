@@ -52,8 +52,9 @@ thresholds = {
 }
 
 # For streamlit-webrtc
+root_path = Path(Path(__file__).resolve().parent.parent)
 video_handler = VideoFrameHandler(sys_config=MAIN_CONFIG)
-audio_handler = AudioFrameHandler(sound_file_path=MAIN_CONFIG.properties['RESOURCES']['AUDIO_ALARM'])
+audio_handler = AudioFrameHandler(sound_file_path=root_path / MAIN_CONFIG.properties['RESOURCES']['AUDIO_ALARM'])
 
 lock = threading.Lock()  # For thread-safe access & to prevent race-condition.
 shared_state = {"play_alarm": False}

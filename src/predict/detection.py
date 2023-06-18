@@ -139,6 +139,7 @@ class VideoFrameHandler:
         """
         # General system configuration with constants
         self.sys_config = sys_config.properties
+        self.root_dir = Path(Path(__file__).resolve().parent.parent.parent)
 
         # Left and right eye chosen landmarks
         self.eye_idxs = {
@@ -163,10 +164,10 @@ class VideoFrameHandler:
         )
 
         # OpenVINO head position and drowsiness detection models
-        self.head_net = IE.read_network(model=self.sys_config['DETECTION']['OPENVINO']['HEAD_POS_MODEL'],
-                                        weights=self.sys_config['DETECTION']['OPENVINO']['HEAD_POS_MODEL_WEIGHTS'])
-        self.drowsy_net = IE.read_network(model=self.sys_config['DETECTION']['OPENVINO']['DROWSY_MODEL'],
-                                          weights=self.sys_config['DETECTION']['OPENVINO']['DROWSY_MODEL_WEIGHTS'])
+        self.head_net = IE.read_network(model=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['HEAD_POS_MODEL'],
+                                        weights=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['HEAD_POS_MODEL_WEIGHTS'])
+        self.drowsy_net = IE.read_network(model=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['DROWSY_MODEL'],
+                                          weights=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['DROWSY_MODEL_WEIGHTS'])
 
         # Tracking counters and sharing states in and out of callbacks
         self.state_tracker = {
