@@ -1,0 +1,12 @@
+clearml
+scikit-learn
+seaborn
+ray==2.5.1
+tqdm==4.65.0
+ultralytics
+pillow==9.4.0
+jupyter
+-i https://download.pytorch.org/whl/cu116
+torch==1.13.1+cu116
+torchaudio==0.12.1
+torchvision==0.13.1

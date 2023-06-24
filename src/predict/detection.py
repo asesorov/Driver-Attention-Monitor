@@ -1,4 +1,5 @@
 import sys
+import csv
 import time
 import numpy as np
 import cv2
@@ -131,6 +132,26 @@ def plot_text(image, text, origin, color, font=cv2.FONT_HERSHEY_SIMPLEX, fntScal
     return image
 
 
+def dump_stats(state_tracker):
+    fieldnames = ['MINUTES_ELAPSED', 'EAR.average_triggered_time', 'EAR.triggers_per_minute',
+                  'HEAD.average_triggered_time', 'HEAD.triggers_per_minute']
+    file_exists = Path('stats.csv').is_file()
+
+    with open('stats.csv', 'a' if file_exists else 'w+') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        if not file_exists:
+            writer.writeheader()
+
+        writer.writerow({
+            'MINUTES_ELAPSED': state_tracker['MINUTES_ELAPSED'],
+            'EAR.average_triggered_time': state_tracker['EAR']['average_triggered_time'],
+            'EAR.triggers_per_minute': state_tracker['EAR']['triggers_per_minute'],
+            'HEAD.average_triggered_time': state_tracker['HEAD']['average_triggered_time'],
+            'HEAD.triggers_per_minute': state_tracker['HEAD']['triggers_per_minute']
+        })
+
+
 class VideoFrameHandler:
     def __init__(self, sys_config):
         """
@@ -172,10 +193,13 @@ class VideoFrameHandler:
         # Tracking counters and sharing states in and out of callbacks
         self.state_tracker = {
             "FRAME_COUNTER": 0,
+            "MINUTES_ELAPSED": 0,
+            "CURRENT_TIME": time.time(),
             "EAR": {
                 "start_time": time.perf_counter(),
                 "triggered_time": 0.0,  # Holds the amount of time passed with EAR < EAR_THRESH
                 "text_color": self.GREEN,
+                "trigger_counter": 0,
                 "average_triggered_time": 0.0,
                 "triggers_per_minute": 0
             },
@@ -184,6 +208,7 @@ class VideoFrameHandler:
                 "position": 0.0,
                 "triggered_time": 0.0,  # Holds the amount of time passed with HEAD_POS < HEAD_THRESH
                 "text_color": self.GREEN,
+                "trigger_counter": 0,
                 "average_triggered_time": 0.0,
                 "triggers_per_minute": 0
             },
@@ -192,12 +217,29 @@ class VideoFrameHandler:
         }
 
     def check_metric_trigger(self, value, threshold, state_value_label, wait_time, check_overcome=False):
+        localtime = time.time()
+        if localtime - self.state_tracker["CURRENT_TIME"] >= 60:
+            self.state_tracker['MINUTES_ELAPSED'] += 1
+            if self.state_tracker[state_value_label]['triggers_per_minute'] > 0:
+                self.state_tracker[state_value_label]['triggers_per_minute'] = (self.state_tracker[state_value_label][
+                                                                                    'triggers_per_minute'] +
+                                                                                self.state_tracker[state_value_label][
+                                                                                    "trigger_counter"]) / 2
+            else:
+                self.state_tracker[state_value_label]['triggers_per_minute'] = self.state_tracker[state_value_label][
+                    "trigger_counter"]
+            LOGGER.warning(f"Triggers by last 60 sec: {self.state_tracker[state_value_label]['trigger_counter']}")
+            LOGGER.warning(f"Avg triggers by minute: {self.state_tracker[state_value_label]['triggers_per_minute']}")
+            dump_stats(self.state_tracker)
+            self.state_tracker[state_value_label]["trigger_counter"] = 0
+            self.state_tracker["CURRENT_TIME"] = time.time()
         if (check_overcome and (value > threshold)) or (not check_overcome and (value < threshold)):
             current_time = time.perf_counter()
             self.state_tracker[state_value_label]['triggered_time'] += current_time - \
                 self.state_tracker[state_value_label]['start_time']
             self.state_tracker[state_value_label]['start_time'] = current_time
             self.state_tracker[state_value_label]['text_color'] = self.RED
+            self.state_tracker[state_value_label]["trigger_counter"] += 1
 
             if self.state_tracker[state_value_label]['triggered_time'] >= wait_time:
                 self.state_tracker["play_alarm"] = True
