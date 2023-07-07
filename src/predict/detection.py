@@ -23,7 +23,10 @@ def get_mediapipe_app(
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5,
 ):
-    """Initialize and return Mediapipe FaceMesh Solution Graph object"""
+    """
+    Initialize and return Mediapipe FaceMesh Solution Graph object
+    """
+
     face_mesh = mp.solutions.face_mesh.FaceMesh(
         max_num_faces=max_num_faces,
         refine_landmarks=refine_landmarks,
@@ -37,6 +40,11 @@ def get_mediapipe_app(
 def distance(point_1, point_2):
     """
     Calculate l2-norm between two points
+
+    :param point_1:
+    :param point_2:
+    :return: L2-norm distance
+    :rtype: tuple
     """
 
     dist = sum([(i - j) ** 2 for i, j in zip(point_1, point_2)]) ** 0.5
@@ -47,16 +55,17 @@ def get_ear(landmarks, refer_idxs, frame_width, frame_height):
     """
     Calculate Eye Aspect Ratio for one eye.
 
-    Args:
-        landmarks: (list) Detected landmarks list
-        refer_idxs: (list) Index positions of the chosen landmarks
+    :param list landmarks: Detected landmarks list
+    :param list refer_idxs: Index positions of the chosen landmarks
                             in order P1, P2, P3, P4, P5, P6
-        frame_width: (int) Width of captured frame
-        frame_height: (int) Height of captured frame
+    :param int frame_width: Width of captured frame
+    :param int frame_height: Height of captured frame
 
-    Returns:
-        ear: (float) Eye aspect ratio
+    :return: ear: (float) Eye aspect ratio;
+             lm_coordinates: (tuple) Landmarks coordinate points
+    :rtype: tuple
     """
+
     try:
         # Compute the euclidean distance between the horizontal
         coords_points = []
@@ -80,37 +89,85 @@ def get_ear(landmarks, refer_idxs, frame_width, frame_height):
     return ear, coords_points
 
 
-def get_head_pos(input_image, net):
+def infer_openvino_model(input_image, net, input_name, output_name):
+    """
+    Parent function for model inference.
+
+    :param np.array input_image: Frame as numpy array
+    :param IENetwork net: OpenVINO IENetwork model
+    :param str input_name: Input layer name
+    :param str output_name: Output layer name
+
+    :return: Inference results (model output)
+    :rtype: list
+    """
+
     # Preprocess the image
-    input_shape = net.input_info['data'].input_data.shape
+    input_shape = net.input_info[input_name].input_data.shape
     resized_image = cv2.resize(input_image, (input_shape[3], input_shape[2]))
     preprocessed_image = resized_image.transpose((2, 0, 1))
     preprocessed_image = preprocessed_image.reshape(input_shape)
 
     # Run inference on the image
     exec_net = IE.load_network(network=net, device_name='CPU', num_requests=1)
-    inference_results = exec_net.infer(inputs={'data': preprocessed_image})
+    inference_results = exec_net.infer(inputs={input_name: preprocessed_image})[output_name][0]
+
+    return inference_results
+
+
+def get_head_pos(input_image, net, input_name, output_name):
+    """
+    Calculate head position (yaw).
+
+    :param np.array input_image: Frame as numpy array
+    :param IENetwork net: OpenVINO IENetwork model
+    :param str input_name: Input layer name
+    :param str output_name: Output layer name
+
+    :return: Head position (yaw)
+    :rtype: float
+    """
+
+    inference_results = infer_openvino_model(input_image, net, input_name, output_name)
 
     # Extract the output probabilities
-    yaw_prob = inference_results['angle_y_fc'][0][0]
+    yaw_prob = inference_results[0]
     return abs(yaw_prob)
 
 
-def get_drowsiness_index(input_image, net):
-    # Preprocess the image
-    input_shape = net.input_info['input.1'].input_data.shape
-    resized_image = cv2.resize(input_image, (input_shape[3], input_shape[2]))
-    preprocessed_image = resized_image.transpose((2, 0, 1))
-    preprocessed_image = preprocessed_image.reshape(input_shape)
+def get_drowsiness_index(input_image, net, input_name, output_name):
+    """
+    Calculate drowsiness index.
 
-    # Run inference on the image
-    exec_net = IE.load_network(network=net, device_name='CPU', num_requests=1)
-    inference_results = exec_net.infer(inputs={'input.1': preprocessed_image})['519'][0]
+    :param np.array input_image: Frame as numpy array
+    :param IENetwork net: OpenVINO IENetwork model
+    :param str input_name: Input layer name
+    :param str output_name: Output layer name
 
+    :return: Drowsiness index
+    :rtype: float
+    """
+
+    inference_results = infer_openvino_model(input_image, net, input_name, output_name)
     return inference_results[1]
 
 
 def calculate_avg_ear(landmarks, left_eye_idxs, right_eye_idxs, image_w, image_h):
+    """
+    Calculate average Eye Aspect Ratio for both eyes.
+
+    :param list landmarks: Detected landmarks list
+    :param list left_eye_idxs: Index positions of the chosen landmarks for left eye
+                               in order P1, P2, P3, P4, P5, P6
+    :param list right_eye_idxs: Index positions of the chosen landmarks for right eye
+                                in order P1, P2, P3, P4, P5, P6
+    :param int image_w: Width of captured frame
+    :param int image_h: Height of captured frame
+
+    :return: avg_ear (float) Average EAR for both left & right eye;
+             lm_coordinates: (tuple) Landmarks coordinate points (left & right eye)
+    :rtype: tuple
+    """
     # Calculate Eye Aspect Ratio (EAR)
 
     left_ear, left_lm_coordinates = get_ear(landmarks, left_eye_idxs, image_w, image_h)
@@ -135,7 +192,12 @@ def plot_text(image, text, origin, color, font=cv2.FONT_HERSHEY_SIMPLEX, fntScal
     return image
 
 
-def dump_stats(state_tracker):
+def dump_stats(state_tracker: dict):
+    """
+    Dump current state into a .csv log file
+    :param dict state_tracker: current state tracker dict
+    :return: None
+    """
     fieldnames = ['MINUTES_ELAPSED', 'EAR.average_triggered_time', 'EAR.triggers_per_minute',
                   'HEAD.average_triggered_time', 'HEAD.triggers_per_minute']
     file_exists = Path('stats.csv').is_file()
@@ -184,14 +246,15 @@ class VideoFrameHandler:
         self.facemesh_model = get_mediapipe_app(
             max_num_faces=self.sys_config['DETECTION']['MEDIAPIPE']['MAX_FACES'],
             min_detection_confidence=self.sys_config['DETECTION']['MEDIAPIPE']['MIN_FACE_DETECTION_CONFIDENCE'],
-            min_tracking_confidence=self.sys_config['DETECTION']['MEDIAPIPE']['MIN_FACE_TRACKING_CONFIDENCE']
-        )
+            min_tracking_confidence=self.sys_config['DETECTION']['MEDIAPIPE']['MIN_FACE_TRACKING_CONFIDENCE'])
 
         # OpenVINO head position and drowsiness detection models
-        self.head_net = IE.read_network(model=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['HEAD_POS_MODEL'],
-                                        weights=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['HEAD_POS_MODEL_WEIGHTS'])
-        self.drowsy_net = IE.read_network(model=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['DROWSY_MODEL'],
-                                          weights=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['DROWSY_MODEL_WEIGHTS'])
+        self.head_net = IE.read_network(
+            model=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['HEAD']['IR'],
+            weights=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['HEAD']['WEIGHTS'])
+        self.drowsy_net = IE.read_network(
+            model=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['DROWSY']['IR'],
+            weights=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['DROWSY']['WEIGHTS'])
 
         # Tracking counters and sharing states in and out of callbacks
         self.default_entry = {
@@ -241,7 +304,8 @@ class VideoFrameHandler:
         if (check_overcome and (value > threshold)) or (not check_overcome and (value < threshold)):
             current_time = time.perf_counter()
             self.state_tracker[state_value_label]['triggered_time'] += current_time - \
-                self.state_tracker[state_value_label]['start_time']
+                                                                       self.state_tracker[state_value_label][
+                                                                           'start_time']
             self.state_tracker[state_value_label]['start_time'] = current_time
             self.state_tracker[state_value_label]['text_color'] = self.RED
             self.state_tracker[state_value_label]["trigger_counter"] += 1
@@ -285,7 +349,8 @@ class VideoFrameHandler:
         ALM_txt_pos = (10, int(frame_h // 2 * 1.85))
 
         # processing: head position (yaw)
-        head_pos = get_head_pos(frame, self.head_net)
+        head_conf = self.sys_config['DETECTION']['OPENVINO']['HEAD']
+        head_pos = get_head_pos(frame, self.head_net, head_conf['INPUT_NAME'], head_conf['OUTPUT_NAME'])
         self.state_tracker['HEAD']['position'] = round(head_pos, 2)
 
         # processing: eyes aspect ratio
@@ -296,7 +361,9 @@ class VideoFrameHandler:
             landmarks = results.multi_face_landmarks[0].landmark
             EAR, coordinates = calculate_avg_ear(landmarks, self.eye_idxs["left"], self.eye_idxs["right"], frame_w,
                                                  frame_h)
-            drowsy_index = get_drowsiness_index(frame, self.drowsy_net)
+            drowsy_index = get_drowsiness_index(frame, self.drowsy_net,
+                                                self.sys_config['DETECTION']['OPENVINO']['DROWSY']['INPUT_NAME'],
+                                                self.sys_config['DETECTION']['OPENVINO']['DROWSY']['OUTPUT_NAME'])
             frame = plot_eye_landmarks(frame, coordinates[0], coordinates[1], self.state_tracker['EAR']['text_color'])
 
             if self.check_metric_trigger(EAR, thresholds['EAR_THRESH'], 'EAR', thresholds['WAIT_TIME']):
@@ -324,10 +391,15 @@ class VideoFrameHandler:
         else:
             self.state_tracker['EAR']['start_time'] = time.perf_counter()
             self.state_tracker['HEAD']['start_time'] = time.perf_counter()
+            self.state_tracker['DROWSY']['start_time'] = time.perf_counter()
+
             self.state_tracker['EAR']['triggered_time'] = 0.0
             self.state_tracker['HEAD']['triggered_time'] = 0.0
+            self.state_tracker['DROWSY']['triggered_time'] = 0.0
+
             self.state_tracker['EAR']["text_color"] = self.GREEN
             self.state_tracker['HEAD']["text_color"] = self.GREEN
+            self.state_tracker['DROWSY']["text_color"] = self.GREEN
             self.state_tracker["play_alarm"] = False
 
             # Flip the frame horizontally for a selfie-view display.

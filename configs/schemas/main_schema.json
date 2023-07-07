@@ -57,9 +57,45 @@
                         "HEAD_POS_MODEL": {"type": "string"},
                         "HEAD_POS_MODEL_WEIGHTS": {"type": "string"},
                         "DROWSY_MODEL": {"type": "string"},
-                        "DROWSY_MODEL_WEIGHTS": {"type": "string"}
+                        "DROWSY_MODEL_WEIGHTS": {"type": "string"},
+                        "HEAD": {
+                            "type": "object",
+                            "properties": {
+                                "IR": {
+                                    "type": "string"
+                                },
+                                "WEIGHTS": {
+                                    "type": "string"
+                                },
+                                "INPUT_NAME": {
+                                    "type": "string"
+                                },
+                                "OUTPUT_NAME": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["IR", "WEIGHTS", "INPUT_NAME", "OUTPUT_NAME"]
+                        },
+                        "DROWSY": {
+                            "type": "object",
+                            "properties": {
+                                "IR": {
+                                    "type": "string"
+                                },
+                                "WEIGHTS": {
+                                    "type": "string"
+                                },
+                                "INPUT_NAME": {
+                                    "type": "string"
+                                },
+                                "OUTPUT_NAME": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["IR", "WEIGHTS", "INPUT_NAME", "OUTPUT_NAME"]
+                        }
                     },
-                    "required": ["HEAD_POS_MODEL", "HEAD_POS_MODEL_WEIGHTS", "DROWSY_MODEL", "DROWSY_MODEL_WEIGHTS"]
+                    "required": ["HEAD", "DROWSY"]
                 },
                 "EAR": {
                     "type": "object",
