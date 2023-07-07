@@ -1,4 +1,5 @@
 import sys
+import copy
 import csv
 import time
 import numpy as np
@@ -34,7 +35,10 @@ def get_mediapipe_app(
 
 
 def distance(point_1, point_2):
-    """Calculate l2-norm between two points"""
+    """
+    Calculate l2-norm between two points
+    """
+
     dist = sum([(i - j) ** 2 for i, j in zip(point_1, point_2)]) ** 0.5
     return dist
 
@@ -92,7 +96,7 @@ def get_head_pos(input_image, net):
     return abs(yaw_prob)
 
 
-def check_drowsiness(input_image, net):
+def get_drowsiness_index(input_image, net):
     # Preprocess the image
     input_shape = net.input_info['input.1'].input_data.shape
     resized_image = cv2.resize(input_image, (input_shape[3], input_shape[2]))
@@ -103,8 +107,7 @@ def check_drowsiness(input_image, net):
     exec_net = IE.load_network(network=net, device_name='CPU', num_requests=1)
     inference_results = exec_net.infer(inputs={'input.1': preprocessed_image})['519'][0]
 
-    threshold = 10
-    return inference_results[1] > threshold
+    return inference_results[1]
 
 
 def calculate_avg_ear(landmarks, left_eye_idxs, right_eye_idxs, image_w, image_h):
@@ -191,29 +194,31 @@ class VideoFrameHandler:
                                           weights=self.root_dir / self.sys_config['DETECTION']['OPENVINO']['DROWSY_MODEL_WEIGHTS'])
 
         # Tracking counters and sharing states in and out of callbacks
+        self.default_entry = {
+            "start_time": time.perf_counter(),
+            "triggered_time": 0.0,
+            "text_color": self.GREEN,
+            "trigger_counter": 0,
+            "average_triggered_time": 0.0,
+            "triggers_per_minute": 0
+        }
+
         self.state_tracker = {
             "FRAME_COUNTER": 0,
             "MINUTES_ELAPSED": 0,
             "CURRENT_TIME": time.time(),
             "EAR": {
-                "start_time": time.perf_counter(),
-                "triggered_time": 0.0,  # Holds the amount of time passed with EAR < EAR_THRESH
-                "text_color": self.GREEN,
-                "trigger_counter": 0,
-                "average_triggered_time": 0.0,
-                "triggers_per_minute": 0
+                **copy.deepcopy(self.default_entry)
             },
             "HEAD": {
-                "start_time": time.perf_counter(),
+                **copy.deepcopy(self.default_entry),
                 "position": 0.0,
-                "triggered_time": 0.0,  # Holds the amount of time passed with HEAD_POS < HEAD_THRESH
-                "text_color": self.GREEN,
-                "trigger_counter": 0,
-                "average_triggered_time": 0.0,
-                "triggers_per_minute": 0
             },
-            "play_alarm": False,
-            "IS_DROWSY": False
+            "DROWSY": {
+                **copy.deepcopy(self.default_entry),
+                "is_drowsy": False
+            },
+            "play_alarm": False
         }
 
     def check_metric_trigger(self, value, threshold, state_value_label, wait_time, check_overcome=False):
@@ -279,11 +284,6 @@ class VideoFrameHandler:
         CLOSED_TIME_txt_pos = (10, int(frame_h // 2 * 1.7))
         ALM_txt_pos = (10, int(frame_h // 2 * 1.85))
 
-        # processing: drowsiness DL model
-        if self.state_tracker['FRAME_COUNTER'] % 10 == 0:
-            self.state_tracker['IS_DROWSY'] = check_drowsiness(frame, self.drowsy_net)
-            self.state_tracker['FRAME_COUNTER'] = 0
-
         # processing: head position (yaw)
         head_pos = get_head_pos(frame, self.head_net)
         self.state_tracker['HEAD']['position'] = round(head_pos, 2)
@@ -291,27 +291,35 @@ class VideoFrameHandler:
         # processing: eyes aspect ratio
         results = self.facemesh_model.process(frame)
 
-        # preparing output
+        # processing DL (each 10th frame for optimization), preparing output
         if results.multi_face_landmarks:
             landmarks = results.multi_face_landmarks[0].landmark
             EAR, coordinates = calculate_avg_ear(landmarks, self.eye_idxs["left"], self.eye_idxs["right"], frame_w,
                                                  frame_h)
+            drowsy_index = get_drowsiness_index(frame, self.drowsy_net)
             frame = plot_eye_landmarks(frame, coordinates[0], coordinates[1], self.state_tracker['EAR']['text_color'])
 
             if self.check_metric_trigger(EAR, thresholds['EAR_THRESH'], 'EAR', thresholds['WAIT_TIME']):
                 plot_text(frame, "OPEN YOUR EYES!", ALM_txt_pos, self.state_tracker['EAR']['text_color'])
-            if self.check_metric_trigger(head_pos, thresholds["HEAD_THRESH"], 'HEAD', thresholds['WAIT_TIME'], True):
+            if self.check_metric_trigger(head_pos, thresholds['HEAD_THRESH'], 'HEAD', thresholds['WAIT_TIME'], True):
                 plot_text(frame, "EYES ON ROAD!", ALM_txt_pos, self.state_tracker['HEAD']['text_color'])
+            if self.state_tracker['FRAME_COUNTER'] % 10 == 0:
+                if self.check_metric_trigger(drowsy_index, thresholds['DROWSY_THRESH'], 'DROWSY',
+                                             thresholds['WAIT_TIME'], True):
+                    self.state_tracker['DROWSY']['is_drowsy'] = True
+                else:
+                    self.state_tracker['DROWSY']['is_drowsy'] = False
+                self.state_tracker['FRAME_COUNTER'] = 0
 
             EAR_txt = f"EAR: {round(EAR, 2)}"
             CLOSED_TIME_txt = f"EYES CLOSED: {round(self.state_tracker['EAR']['triggered_time'], 3)} Secs"
-            HEAD_text = f"HEAD POS: {self.state_tracker['HEAD']['position']}"
-            STATE_text = f"STATE: {'DROWSY' if self.state_tracker['IS_DROWSY'] else 'OK'}"
+            HEAD_text = f"HEAD POS: {round(self.state_tracker['HEAD']['position'], 3)}"
+            STATE_text = f"STATE: {'DROWSY' if self.state_tracker['DROWSY']['is_drowsy'] else 'OK'}"
 
             plot_text(frame, EAR_txt, self.EAR_txt_pos, self.state_tracker['EAR']['text_color'])
             plot_text(frame, CLOSED_TIME_txt, CLOSED_TIME_txt_pos, self.state_tracker['EAR']['text_color'])
             plot_text(frame, HEAD_text, self.HEAD_txt_pos, self.state_tracker['HEAD']['text_color'])
-            plot_text(frame, STATE_text, self.STATE_txt_pos, self.state_tracker['HEAD']['text_color'])  # TODO: change
+            plot_text(frame, STATE_text, self.STATE_txt_pos, self.state_tracker['DROWSY']['text_color'])
 
         else:
             self.state_tracker['EAR']['start_time'] = time.perf_counter()

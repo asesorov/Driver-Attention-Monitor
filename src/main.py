@@ -31,7 +31,7 @@ col1, col2 = st.columns(spec=[6, 2], gap="medium")
 with col1:
     st.title("Driver Attention Monitoring System")
     with st.container():
-        wait_slider, ear_slider, head_slider = st.columns(spec=[1, 1, 1])
+        wait_slider, ear_slider, head_slider, drowsy_slider = st.columns(spec=[1, 1, 1, 1])
         with wait_slider:
             # The amount of time (in seconds) to wait before sounding the alarm.
             WAIT_TIME = st.slider("Seconds to wait before sounding alarm:",
@@ -45,9 +45,15 @@ with col1:
             HEAD_THRESH = st.slider("Head position threshold:",
                                     *MAIN_CONFIG.properties['THRESHOLDS']['HEAD_THRESH'])
 
+        with drowsy_slider:
+            # Highest valid value of head position threshold. Ideal value 10 +-5
+            DROWSY_THRESH = st.slider("Drowsiness threshold:",
+                                      *MAIN_CONFIG.properties['THRESHOLDS']['DROWSY_THRESH'])
+
 thresholds = {
     "EAR_THRESH": EAR_THRESH,
     "HEAD_THRESH": HEAD_THRESH,
+    "DROWSY_THRESH": DROWSY_THRESH,
     "WAIT_TIME": WAIT_TIME,
 }
 
