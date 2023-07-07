@@ -25,6 +25,20 @@
         },
         "OPENVINO":
         {
+            "HEAD":
+            {
+                "IR": "models/head-pose-estimation-adas-0001/head-pose-estimation-adas-0001.xml",
+                "WEIGHTS": "models/head-pose-estimation-adas-0001/head-pose-estimation-adas-0001.bin",
+                "INPUT_NAME": "data",
+                "OUTPUT_NAME": "angle_y_fc"
+            },
+            "DROWSY":
+            {
+                "IR": "models/mobilenetv3/mobilenet_v3_large.xml",
+                "WEIGHTS": "models/mobilenetv3/mobilenet_v3_large.bin",
+                "INPUT_NAME": "input.1",
+                "OUTPUT_NAME": "519"
+            },
             "HEAD_POS_MODEL": "models/head-pose-estimation-adas-0001/head-pose-estimation-adas-0001.xml",
             "HEAD_POS_MODEL_WEIGHTS": "models/head-pose-estimation-adas-0001/head-pose-estimation-adas-0001.bin",
             "DROWSY_MODEL": "models/mobilenetv3/mobilenet_v3_large.xml",
