@@ -54,10 +54,6 @@
                 "OPENVINO": {
                     "type": "object",
                     "properties": {
-                        "HEAD_POS_MODEL": {"type": "string"},
-                        "HEAD_POS_MODEL_WEIGHTS": {"type": "string"},
-                        "DROWSY_MODEL": {"type": "string"},
-                        "DROWSY_MODEL_WEIGHTS": {"type": "string"},
                         "HEAD": {
                             "type": "object",
                             "properties": {
