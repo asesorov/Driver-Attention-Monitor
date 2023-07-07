@@ -311,7 +311,8 @@ class VideoFrameHandler:
             plot_text(frame, EAR_txt, self.EAR_txt_pos, self.state_tracker['EAR']['text_color'])
             plot_text(frame, CLOSED_TIME_txt, CLOSED_TIME_txt_pos, self.state_tracker['EAR']['text_color'])
             plot_text(frame, HEAD_text, self.HEAD_txt_pos, self.state_tracker['HEAD']['text_color'])
-            plot_text(frame, STATE_text, self.STATE_txt_pos, self.state_tracker['HEAD']['text_color'])  # TODO: change
+            plot_text(frame, STATE_text, self.STATE_txt_pos,
+                      self.RED if self.state_tracker['IS_DROWSY'] else self.GREEN)
 
         else:
             self.state_tracker['EAR']['start_time'] = time.perf_counter()
