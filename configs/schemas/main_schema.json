@@ -20,6 +20,10 @@
                     "type": "array",
                     "items": {"type": "number"}
                 },
+                "DROWSY_THRESH": {
+                    "type": "array",
+                    "items": {"type": "number"}
+                },
                 "WAIT_TIME": {
                     "type": "array",
                     "items": {"type": "number"}
